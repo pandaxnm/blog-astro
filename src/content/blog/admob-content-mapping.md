@@ -1,14 +1,14 @@
 ---
 author: xiongchaojie
 pubDatetime: 2023-08-02T04:58:53Z
-title: Admob广告内容映射(ContentMapping)实践
+title: Admob广告内容映射(Content Mapping)实践
 slug: admob-content-mapping
 featured: false
 draft: false
 tags:
   - Admob
   - 广告
-description: 最近公司的广告项目接入了 Admob 广告的 Content Mapping（内容映射），记录一下。
+description: 最近公司的广告项目接入了 Admob 广告的内容映射（Content Mapping），记录一下实践过程。
 ---
 
 最近公司的广告项目接入了 Admob 广告的 Content Mapping（内容映射），特此记录一下
