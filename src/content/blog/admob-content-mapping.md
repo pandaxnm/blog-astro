@@ -1,7 +1,6 @@
 ---
 author: xiongchaojie
 pubDatetime: 2023-08-02T04:58:53Z
-modDatetime: 2024-01-15T13:05:56.066Z
 title: Admob广告内容映射(ContentMapping)实践
 slug: admob-content-mapping
 featured: false
