@@ -6,8 +6,8 @@ slug: admob-content-mapping
 featured: false
 draft: false
 tags:
-  - configuration
-  - docs
+  - Admob
+  - 广告
 description: 最近公司的广告项目接入了 Admob 广告的 Content Mapping（内容映射），记录一下。
 ---
 
