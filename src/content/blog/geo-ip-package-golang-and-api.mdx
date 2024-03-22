@@ -1,0 +1,65 @@
+---
+author: ${SITE.author.name}
+pubDatetime: 2021-10-21T14:06:00Z
+title: GEO-IP数据库在Golang中使用及API服务
+featured: false
+draft: true
+tags:
+  - Golang
+  - GEO-IP
+description: 前。
+---
+
+##
+
+公司内部目前使用的IP转地区码的服务是基于[ipip.net](https://www.ipip.net/)的，之前都是在PHP里使用，可以直接读取物理机上的IP库文件，IP库文件
+
+## Go Package
+
+## API服务
+
+IP转地区码
+
+```bash
+curl -X GET "https://host.com/get?ip=211.107.26.1"
+
+{
+    "code": 200,
+    "message": "ok",
+    "data": "1_410_000000",
+    "extra": {}
+}
+```
+
+IP转详细信息
+
+```bash
+curl -X GET "https://host.com/get/detail?ip=114.10.134.249"
+
+{
+    "code": 200,
+    "message": "ok",
+    "data": {
+        "ip_code": "1_360_000000",
+        "country_name": "印度尼西亚",
+        "region_name": "印度尼西亚",
+        "city_name": "",
+        "location_desc": "印度尼西亚",
+        "china_admin_code": "000000",
+        "continent_code": "AP",
+        "country_code": "ID",
+        "europe_union": "",
+        "idd_code": "62",
+        "isp_domain": "",
+        "latitude": "0.10974",
+        "longitude": "113.917397",
+        "owner_domain": "",
+        "timezone": "Asia/Jakarta",
+        "utc_offset": "UTC+7"
+    },
+    "extra": {}
+}
+```
+
+由于是纯内存操作，可以看到 P99 耗时非常低，甚至不到1ms。
+![](@assets/images/ipip-api-p99.png)
