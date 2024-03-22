@@ -15,6 +15,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@astro-community/astro-embed-youtube": "^0.4.4",
     "@astrojs/check": "^0.4.1",
     "@astrojs/mdx": "^2.2.1",
     "@astrojs/rss": "^4.0.2",
