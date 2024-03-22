@@ -7,14 +7,21 @@ draft: true
 tags:
   - Golang
   - GEO-IP
-description: 前。
+description: 公司内部目前使用的IP转地区码的服务是基于[ipip.net](https://www.ipip.net/)的，之前都是在PHP里使用，可以直接读取物理机上的IP库文件，所有机器上的IP库文件会由另外一个脚本机器定时统一更新。
 ---
 
-##
+## 背景
 
-公司内部目前使用的IP转地区码的服务是基于[ipip.net](https://www.ipip.net/)的，之前都是在PHP里使用，可以直接读取物理机上的IP库文件，IP库文件
+公司内部目前使用的IP转地区码的服务是基于[ipip.net](https://www.ipip.net/)的，之前都是在PHP里使用，可以直接读取物理机上的IP库文件，所有机器上的IP库文件会由另外一个脚本机器定时统一更新。
 
-## Go Package
+但最近我们的技术栈增加了 Golang，但我们的服务都是在容器里运行，不能直接读取物理机上的IP库文件，所以在寻找一个更好的解决方案。
+
+## 前期尝试
+
+[ipip.net](https://www.ipip.net/) 官方提供了一个 Golang 包
+https://github.com/ipipdotnet/ipdb-go
+
+使用后发现，输入的结果并不是我们所期望的 IP地址码。
 
 ## API服务
 
