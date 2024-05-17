@@ -107,10 +107,10 @@ Elasticsearch 的设计目标之一是确保查询的高效性和集群的稳定
 
 2. **修改`index.max_result_window` 参数**
 
-   如果确实需要一次性返回大量结果，可以增加 `index.max_result_window` 的值。不过，这只是权宜之计，不推荐用于生产环境。  
-   增加 `index.max_result_window` 的步骤如下：  
-   打开 Elasticsearch 配置文件或者通过 API 修改设置。  
-   修改 `index.max_result_window` 参数。  
+   如果确实需要一次性返回大量结果，可以增加 `index.max_result_window` 的值。不过，这只是权宜之计，不推荐用于生产环境。
+   增加 `index.max_result_window` 的步骤如下：
+   打开 Elasticsearch 配置文件或者通过 API 修改设置。
+   修改 `index.max_result_window` 参数。
    示例命令：
 
    ```sh
@@ -126,8 +126,8 @@ Elasticsearch 的设计目标之一是确保查询的高效性和集群的稳定
 
 ## 说明
 
-初始化请求：使用 `match_all` 查询和 `size` 参数来指定每次返回的结果数量。  
-提取 `scroll_id`：使用 jq 工具从 JSON 响应中提取 `scroll_id`。  
+初始化请求：使用 `match_all` 查询和 `size` 参数来指定每次返回的结果数量。
+提取 `scroll_id`：使用 jq 工具从 JSON 响应中提取 `scroll_id`。
 循环获取结果：不断使用新的 `scroll_id` 发送请求，直到没有更多结果为止。
 
 ## 总结
