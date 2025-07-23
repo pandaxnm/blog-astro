@@ -1,0 +1,5 @@
+name = "blog-astro"
+compatibility_date = "2025-07-23"
+
+[site]
+bucket = "./dist"
