@@ -1,0 +1,75 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Header from "@/components/Header.astro";
+import Footer from "@/components/Footer.astro";
+import Breadcrumb from "@/components/Breadcrumb.astro";
+import Pagination from "@/components/Pagination.astro";
+
+import data from "@/assets/data/bili.json";
+
+const images = import.meta.glob('@/assets/images/bili/*', {
+  eager: true,
+  import: 'default',
+});
+
+function secondsToHumanTime(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  const pad = (n) => n.toString().padStart(2, '0');
+
+  if (hours > 0) {
+    return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+  } else {
+    return `${pad(minutes)}:${pad(secs)}`;
+  }
+}
+
+
+---
+
+<Layout title="Videos">
+  <Header activeNav="videos" />
+  <Breadcrumb />
+  <main id="main-content" class="py-8 px-4">
+    <section>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {
+          data.map((item) => {
+            const key = `/src/assets/images/bili/${item.cover}`;
+            const imgSrc = images[key]?.src;
+            const bvid = item.bvid;
+            return (
+                <div class="bg-gray-100 p-0 rounded">
+                  <a href={"https://www.bilibili.com/video/"+bvid} target="_blank" class="block">
+                    <div class="aspect-video overflow-hidden rounded-t relative">
+                      <img
+                          src={imgSrc}
+                          alt={`视频封面：${item.title}-${item.tag}`}
+                          class="w-full h-full object-cover"
+                      />
+                      <div class="absolute left-0 bottom-0 w-full flex justify-between items-center px-1 py-0.5 text-white text-[13px] bg-[rgba(0,0,0,0.3)]">
+                        <span>{new Date(item.ctime * 1000).toISOString().slice(0, 10)}</span>
+                        <span>{secondsToHumanTime(item.duration)}</span>
+                      </div>
+                    </div>
+                    <div class="p-1 leading-tight">
+                      <span class="text-xs">{item.title}</span>
+                    </div>
+                  </a>
+                </div>
+
+            )
+          })
+        }
+
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
+
+<style>
+
+</style>

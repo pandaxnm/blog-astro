@@ -1,0 +1,136 @@
+---
+author: XiongChaoJie
+pubDatetime: 2024-05-16T17:42:15Z
+title: Elasticsearch中的查询结果窗口限制
+slug: elasticsearch-result-window-limit
+featured: false
+draft: false
+tags:
+  - Elasticsearch
+description: Elasticsearch Result Window Limits
+---
+
+## 问题
+
+> Result window is too large, from + size must be less than or equal to: [10000] but was [100005]. See the scroll api for a more efficient way to request large data sets. This limit can be set by changing the [index.max_result_window] index level setting.
+
+这个问题通常出现在使用 Elasticsearch 查询数据时。具体来说，当你尝试一次性从一个索引中检索超过 `index.max_result_window` 设置的最大数量的文档时，就会出现这个错误。默认情况下，这个限制是 10,000。
+
+## 原因解释
+
+Elasticsearch 的设计目标之一是确保查询的高效性和集群的稳定性。一次性返回大量的结果可能会导致以下问题：
+
+- **内存消耗过大**：返回大量结果会消耗大量内存，这可能会导致节点崩溃。
+- **性能下降**：处理大量数据会增加 CPU 和 I/O 负载，影响查询性能和响应时间。
+- **网络带宽占用**：传输大量数据需要消耗大量网络带宽，可能会导致网络拥堵和延迟。
+  为了避免这些问题，Elasticsearch 引入了 index.max_result_window 参数来限制单次查询可以返回的最大结果数量。这个参数的默认值是 10,000，可以根据需要进行调整，但过高的值依然可能带来上述问题。
+
+## 解决方法
+
+1. **使用 Scroll API**
+
+   如果需要检索大量数据，推荐使用 Scroll API。Scroll API 是为大规模数据检索而设计的，适合分页检索大数据集。
+   基本步骤如下：
+   初始化 Scroll 请求
+   首先，初始化一个 Scroll 请求来获取初始结果和 `scroll_id`：
+
+   ```sh
+   curl -X GET "localhost:9200/your_index/_search?scroll=2m" -H 'Content-Type: application/json' -d'
+   {
+      "query": {
+         "match_all": {}
+      },
+         "size": 1000
+      }
+   '
+   ```
+
+   这个请求返回的响应中会包含一个 scroll_id，以及最初的结果集。
+
+   获取更多数据
+   使用返回的 scroll_id 来获取后续的结果。每次请求都会返回一个新的 scroll_id，用于下一个请求。
+
+   ```sh
+   curl -X GET "localhost:9200/_search/scroll" -H 'Content-Type: application/json' -d'
+   {
+      "scroll": "2m",
+      "scroll_id": "DnF1ZXJ5VGhlbkZldGNoBQAAAAAAABZkFlZ3bEdtcDd6eEtLZ1hJVldpdmlRT2cAAAAAAABWmhZe3RaRUlsdFJLZ3h3R2dNQmNLUUt5Zw=="
+   }
+   '
+   ```
+
+   将上一步返回的 `scroll_id` 替换到请求体中的 `scroll_id` 字段中。
+
+   完整的示例
+
+   ```sh
+   # 初始化 Scroll 请求
+   INITIAL_RESPONSE=$(curl -X GET "localhost:9200/your_index/_search?scroll=2m" -H 'Content-Type: application/json' -d'
+   {
+      "query": {
+         "match_all": {}
+      },
+      "size": 1000
+   }
+   ')
+
+   # 提取初始的 scroll_id
+   SCROLL_ID=$(echo $INITIAL_RESPONSE | jq -r '._scroll_id')
+
+   # 获取初始结果
+   echo "Initial results:"
+   echo $INITIAL_RESPONSE | jq '.hits.hits'
+
+   # 循环获取后续的结果
+   while true; do
+      RESPONSE=$(curl -X GET "localhost:9200/_search/scroll" -H 'Content-Type: application/json' -d"
+      {
+         \"scroll\": \"2m\",
+         \"scroll_id\": \"$SCROLL_ID\"
+      }
+      ")
+
+      # 提取新的 scroll_id
+      SCROLL_ID=$(echo $RESPONSE | jq -r '._scroll_id')
+
+      # 检查是否有更多结果
+      HITS=$(echo $RESPONSE | jq '.hits.hits')
+      if [ "$HITS" == "[]" ]; then
+         echo "No more results."
+         break
+      fi
+
+      # 输出结果
+      echo "Next batch of results:"
+      echo $HITS
+   done
+   ```
+
+2. **修改`index.max_result_window` 参数**
+
+   如果确实需要一次性返回大量结果，可以增加 `index.max_result_window` 的值。不过，这只是权宜之计，不推荐用于生产环境。
+   增加 `index.max_result_window` 的步骤如下：
+   打开 Elasticsearch 配置文件或者通过 API 修改设置。
+   修改 `index.max_result_window` 参数。
+   示例命令：
+
+   ```sh
+   PUT /your_index/_settings
+   {
+      "index": {
+         "max_result_window": 65536
+      }
+   }
+   ```
+
+   但需要注意，过高的设置可能会导致上述性能和稳定性问题。
+
+## 说明
+
+初始化请求：使用 `match_all` 查询和 `size` 参数来指定每次返回的结果数量。
+提取 `scroll_id`：使用 jq 工具从 JSON 响应中提取 `scroll_id`。
+循环获取结果：不断使用新的 `scroll_id` 发送请求，直到没有更多结果为止。
+
+## 总结
+
+在检索大量数据时，最佳实践是使用 Scroll API 来分页获取数据，确保集群的稳定性和查询的高效性。如果必须要调整 `index.max_result_window`，需要权衡性能和稳定性，谨慎操作。

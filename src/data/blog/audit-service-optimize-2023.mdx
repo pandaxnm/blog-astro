@@ -1,0 +1,163 @@
+---
+author: XiongChaoJie
+pubDatetime: 2023-09-25T15:20:35Z
+title: 内容审核系统的改造与优化
+slug: audit-service-optimize-2023
+featured: false
+draft: false
+tags:
+  - PHP
+  - Golang
+  - Kafka
+description: 前段时间对公司的内容审核系统进行了一次改造，涉及流程、技术栈改造，以及项目重构。
+---
+
+# 背景
+
+公司现有的内容审核系统是一个基于 PHP Swoole 的系统，主要用于对用户上传的图片、视频、文本等内容进行审核。
+
+现有系统存在着链路过长、问题追踪复杂、业务逻辑冗余混乱等问题，为了解决这些问题，我们对现有系统进行了一次改造。
+
+现有系统的流程图如下：
+![](@/assets/images/audit_system.png)
+
+## 模块介绍：
+
+- **业务系统(PHP)**：对外提供客户端API，供用户上传的图片、视频、文本等内容
+- **审核系统(PHP+Swoole)**：对业务系统上传的内容进行处理，包含审核任务生成、审核结果处理等
+- **审核API服务(PHP+Swoole)**：向后台提供API，进行具体审核使用
+
+## 流程介绍：
+
+- **审核任务生成**：
+  客户端调用业务系统API上传内容，业务系统往服务器上写入文件日志；
+  服务器上的Rsyslog将日志发送到Kafka；
+  审核系统消费Kafka生成审核任务，将任务写入MySQL。
+- **审核结果处理**：
+  审核API服务从MySQL中读取审核任务，后台进行审核；
+  后台审核完成后调用审核系统API，将审核结果写入Kafka；
+  审核系统消费Kafka，处理任务并将审核结果写入MySQL。
+
+## 存在的问题：
+
+1. **链路过长**：业务系统上传内容到审核结果返回，中间经过了多个环节，链路过长，导致问题追踪困难；
+2. **问题追踪复杂**：由于链路过长，导致问题追踪复杂，问题发生时，需要在多个环节进行排查；
+3. **业务逻辑冗余混乱**：现有系统中，业务逻辑分散在多个模块中，导致业务逻辑冗余混乱，不利于维护和扩展；
+4. **耦合度高**：现有系统中，各个模块耦合度高，不利于模块的独立维护和扩展；
+
+实际案例：
+
+- 服务器日志未定时清理，导致Rsyslog同步Kafka失败，任务丢失。
+- Rsylog服务偶尔异常，某些日志没有同步到Kafka，任务丢失。
+
+# 优化和改造
+
+## 优化目标：
+
+1. **链路优化**：优化审核系统的流程，减少链路，提高系统稳定性；
+2. **业务逻辑优化**：优化业务逻辑，减少冗余，提高系统可维护性；
+3. **技术栈和项目优化**：优化技术栈，使用Golang重构审核系统，优化项目结构。
+
+## 优化实施
+
+### 1. 链路优化
+
+对于链路优化，我们的做法是去掉Kafka，让各个业务系统直接通过API请求审核系统。
+虽然Kafka有削峰、平谷等优点，但是对于我们的业务场景来说，并不能发挥出Kafka的优势，反而增加了系统的复杂度。
+
+优化后的流程图如下：
+去掉了Rsyslog、Kafka，让其他业务系统直接通过API请求审核系统
+![](@/assets/images/audit_system_new.png)
+
+### 2. 业务逻辑优化
+
+对于业务逻辑优化，重点是去除冗余逻辑。
+通过阅读项目代码以及与业务方沟通，整理出了各个种类审核任务的流程，从而根据流程对现有的逻辑进行优化。
+
+如下图是我们整理的真人认证审核任务流程图：
+![](@/assets/images/users_verify.jpeg)
+
+## 3. 技术栈和项目优化
+
+技术栈和项目优化是本次的重点工作，我们决定使用Golang重构审核系统、并对项目结构进行优化。
+选择Golang最主要的原因其实是公司内部系统在逐渐实现容器化，而Golang在容器化方面有着很大的优势。
+
+### 3.1 项目重构
+
+1. 业务逻辑分层
+
+新项目可以通过Kafka和API接受数据，将数据处理与业务逻辑分离。
+![](@/assets/images/audit_service_kafka_api.png)
+
+- 使用 **Manager** 管理全局流程
+- 将每种任务拆分为单独的 **TaskHandler** 处理具体逻辑
+
+```go
+type Manager interface {
+	//
+	// Start 开始
+	//
+	Start()
+
+	//
+	// Stop 停止
+	//
+	Stop()
+
+	//
+	// RegisterHandler 注册Handler (在Start之前，初始化阶段调用，运行时禁止调用)
+	// @param h TaskHandler
+	//
+	RegisterHandler(TaskHandler)
+
+	//
+	// SubmitTask 提交任务
+	// @param name 任务名称
+	// @param value 任务数据
+	//
+	SubmitTask(name string, value string) error
+}
+
+type manager struct {
+	handlers    map[string]*managerHandler
+	ready       bool
+}
+
+type managerHandler struct {
+	handler TaskHandler
+	pool    *ants.PoolWithFunc
+}
+
+```
+
+```go
+type TaskHandler interface {
+	//
+	// Name 任务名称
+	//
+	Name() string
+
+	//
+	// Handle 处理任务
+	//
+	Handle(string) aggregate.MultiErrors
+}
+```
+
+2. 异步化
+
+由于原有的逻辑是将任务数据写入 Kafka，可以认为是异步的，所以我们在新项目中也将任务处理异步化。
+
+使用 ants 这个库来实现异步
+
+```go
+https://github.com/panjf2000/ants
+```
+
+每个 `TaskHandler` 都有一个 `ants.PoolWithFunc` 的协程池，用来处理任务，任务提交后立即返回，从而实现异步。
+
+3. 业务逻辑分层
+
+- TaskHandler 处理任务总体流程
+- TaskService 处理任务具体逻辑
+- TaskRepo 处理任务数据存储

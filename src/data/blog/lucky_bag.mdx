@@ -1,0 +1,38 @@
+---
+author: XiongChaoJie
+pubDatetime: 2025-01-14T15:47:53Z
+title: example
+slug: lucky_bag
+featured: false
+draft: true
+tags:
+  - example
+description: example
+---
+
+## 功能简介
+群福袋功能，用户可以发送一个福袋，其他用户可以领取福袋，领取后获得随机金币数。
+
+## 功能点
+-
+
+## 表结构
+
+福袋表
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| id | int | 主键 |
+| total_beans | int(11) | 总金币数 |
+| total_nums | int(11) | 总份数 |
+| remain_beans | int(11) | 剩余金币数 |
+| remain_nums | int(11) | 剩余份数 |
+
+福袋领取记录表
+| 字段名 | 类型 | 说明 |
+| --- | --- | --- |
+| id | int | 主键 |
+| lucky_bag_id | int | 福袋id |
+| user_id | int | 用户id |
+| beans | int | 金币数 |
+
+

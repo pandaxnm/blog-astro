@@ -1,0 +1,225 @@
+---
+author: XiongChaoJie
+pubDatetime: 2021-10-21T14:06:00Z
+title: GEO-IP数据库在Golang中使用及API服务构建
+slug: geo-ip-package-golang-and-api
+featured: false
+draft: false
+tags:
+  - Golang
+  - GEO-IP
+description: 公司内部目前使用的IP转地区码的服务是基于[ipip.net](https://www.ipip.net/)的，之前都是在PHP里使用，可以直接读取物理机上的IP库文件，所有机器上的IP库文件会由另外一个脚本机器定时统一更新。
+---
+
+## 背景
+
+随着技术栈的扩展，我们引入了Golang，面临了新的问题：如何在容器化环境中有效地利用GEO-IP库。
+
+此前，我们依赖 [ipip.net](https://www.ipip.net/) 的服务，在PHP环境中直接读取物理机上的IP库文件，且通过定期脚本更新。为了解决容器化带来的问题，我们进行了一系列探索和实践。
+
+## 前期探索
+
+查询资料发现 [ipip.net](https://www.ipip.net/) 官方提供了一个 Golang 包，也许可以直接使用。
+
+```bash
+https://github.com/ipipdotnet/ipdb-go
+```
+
+输出结果如下：
+
+```json
+{
+  "country_name": "中国",
+  "region_name": "北京",
+  "city_name": "北京",
+  "location_desc": "中国北京",
+  "china_admin_code": "110000",
+  "continent_code": "AP",
+  "country_code": "CN",
+  "europe_union": "",
+  "idd_code": "86",
+  "isp_domain": "联通",
+  "latitude": "xxx",
+  "longitude": "xxx",
+  "owner_domain": "",
+  "timezone": "Asia/Shanghai",
+  "utc_offset": "UTC+8"
+}
+```
+
+然而，尽管该包能够返回详尽的地理信息，输出结果并未符合我们期望的地区码格式。
+
+我们所期望的IP转地区码的示例结果如下：
+
+```
+中国北京 -> 1_156_110000
+印度尼西亚 -> 1_360_000000
+```
+
+阅读原有的PHP包代码后，发现是我们自己对识别的结果做了一层映射。
+
+例如 `1_156_110000` ：
+
+- 1: 亚洲 （对应结果中 `continent_code` 的 `AP`）
+- 156: 中国 （对应结果中的 `country_code` 的 `CN` ）
+- 110000: 北京 （对应结果中 `china_admin_code` 的 `110000`）
+
+## 解决方案
+
+### Golang中使用
+
+为了解决这个问题，我们需要自己实现一个简单的映射，将地理信息转换成公司内部标准的地区码格式，并将此逻辑封装为一个Golang包以方便复用。
+
+```go
+// client.go
+type Client struct {
+	ipdb *ipdb.City
+}
+
+func NewClient(ipdbPath string) (*Client, error) {
+	// ...
+}
+
+func (client *Client) Reload(ipdbPath string) error {
+	// ...
+}
+
+```
+
+```go
+// 定义洲映射关系
+var continentCodes = map[string]string{
+	"UN": "0",
+	"AS": "1",
+	"AP": "1",
+	// ...
+}
+// 定义国家映射关系
+var countryCodes = map[string]string{
+	"CN": "156",
+	"AX": "248",
+	"AL": "008",
+  // ...
+}
+```
+
+```go
+// IP转地区码
+type Region struct {
+	ContinentCode, CountryCode, ChinaAdminCode string
+	IsChina                                    bool
+}
+
+func (client *Client) Ip2Rcode(ip string) Region {
+	r := newRegion()
+  //...
+}
+```
+
+完成后我们可以直接使用这个包来获取我们需要的结果。
+
+```go
+client, err := ipip.NewClient("/path/to/city.ipdb")
+if err != nil {
+  log.Fatal(err)
+}
+
+region := client.Ip2Rcode("106.208.108.28")
+fmt.Println(region) // &{1 356 000000 false}
+fmt.Println(region.Format()) // 1_356_000000
+```
+
+### IP库更新
+
+面对容器化环境的限制，我们采取了将IP库文件内嵌于代码中的策略，并通过定时任务更新。
+
+因为不清楚服务器上的IP库文件具体的更新逻辑，我们只能使用在 Golang 中使用 SSH SCP 的方式从一台服务器上下载IP库文件。
+
+用到了这两个包：
+
+- github.com/povsister/scp
+- golang.org/x/crypto/ssh
+
+```go
+import (
+  "github.com/povsister/scp"
+  "golang.org/x/crypto/ssh"
+)
+// 读取私钥
+authKeyData, _ := os.ReadFile(keyPath)
+conf, _ = scp.NewSSHConfigFromPrivateKey("work", authKeyData)
+// 创建client
+scpClient, _ := scp.NewClient(host, conf, &scp.ClientOption{})
+// scp文件
+scpClient.CopyFileFromRemote(remoteFile, localFile, transConf)
+```
+
+后续经过详细了解发现，IP库文件是从一个URL上下载的，所以可以直接使用 `http.Get` 的方式下载。
+
+此处会用到两个链接
+
+- https://host.com/IPDB_VERSION 用于获取IP库文件的版本号
+- https://host.com/city.ipdb 用于获取IP库文件
+
+我们只需要定时去获取版本号，如果版本号不一致，再去下载IP库文件即可。
+
+### API服务
+
+> 之前发生了一个小插曲：
+> 其他部门的同事在IP转地区码时，出现了错误，原因是库文件太旧。
+
+正好我在封装这个Golang包时，顺便写了一个简单的API服务，便将这个API服务提供给了他们使用。
+
+此API服务有以下特点：
+
+- 使用 fiber 框架，性能非常好
+- 服务内部已经处理了IP库文件的更新逻辑，保证了数据的准确性
+- API调用简单，只需要传入IP地址即可，支持单个、批量查询
+
+此API服务随后被广泛部署于我们的项目及其他部门中，保证了内部数据的统一性。
+
+IP转地区码
+
+```bash
+curl -X GET "https://host.com/get?ip=211.107.26.1"
+
+{
+    "code": 200,
+    "message": "ok",
+    "data": "1_410_000000",
+}
+```
+
+IP转地区码的详细信息
+
+```bash
+curl -X GET "https://host.com/get/detail?ip=114.10.134.249"
+
+{
+    "code": 200,
+    "message": "ok",
+    "data": {
+        "ip_code": "1_360_000000",
+        "country_name": "印度尼西亚",
+        "region_name": "印度尼西亚",
+        "city_name": "",
+        "location_desc": "印度尼西亚",
+        "china_admin_code": "000000",
+        "continent_code": "AP",
+        "country_code": "ID",
+        "europe_union": "",
+        "idd_code": "62",
+        "isp_domain": "",
+        "latitude": "0.10974",
+        "longitude": "113.917397",
+        "owner_domain": "",
+        "timezone": "Asia/Jakarta",
+        "utc_offset": "UTC+7"
+    },
+}
+```
+
+由于是纯内存操作，可以看到 P99 耗时非常低。
+![](@/assets/images/ipip-api-p99.png)
+
+以上便是我们在 Golang 中使用 GEO-IP 库，以及提供 API 服务的实践过程。

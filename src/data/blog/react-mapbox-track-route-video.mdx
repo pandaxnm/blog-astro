@@ -1,0 +1,261 @@
+---
+author: XiongChaoJie
+pubDatetime: 2025-01-09T10:58:53Z
+title: 使用 React + MapBox 生成 GPS 轨迹视频
+slug: react-mapbox-track-route-video
+featured: false
+draft: true
+tags:
+  - Admob
+  - advertisement
+description: 使用 React + MapBox，实现从 GoPro 视频中提取 GPX 轨迹文件，并生成 GPS 轨迹视频。
+---
+
+# 背景
+
+最近想在之前拍摄的第一视角行车视频中添加 GPS 地图轨迹，以便更好地展示行程路线。在网上搜索了一圈之后，并没有现有的工具可以满足我的需求。
+
+现有的大多数工具虽然能生成轨迹视频，但大多数只能生成固定时长的倍速视频，并没有能够根据视频的实际行程实时生成轨迹的工具。
+
+在这篇博客中，我将通过 **React** 和 **Mapbox.js** 实现一个功能：将 GPX 文件中的轨迹渲染到地图上，并生成动态轨迹视频。可以用于记录跑步、骑行等活动的轨迹，并以视频的形式展示。
+
+![](@/assets/images/mapbox1.png)
+
+## 1. 项目背景
+
+GPX（GPS eXchange Format）是一种常见的 GPS 数据文件格式，用于存储位置信息，如经纬度、时间戳等。通过 GPX 文件，我们可以在地图上展示轨迹，并且通过动态动画模拟出轨迹的生成过程。
+
+在这个项目中，我们将：
+
+- 使用 **Mapbox.js** 渲染 GPX 轨迹。
+- 使用 **React** 构建用户界面。
+- 利用 **FFmpeg** 将轨迹生成的视频导出。
+
+最终效果如下：
+
+1. 地图上动态绘制 GPX 轨迹。
+2. 将地图轨迹绘制过程录制并导出为 MP4 视频。
+
+## 2. 技术栈与工具
+
+- **React**: 前端框架，用于构建用户界面。
+- **Mapbox.js**: 地图渲染库，用于在地图上显示轨迹。
+- **FFmpeg**: 音视频处理工具，用于将截图合成为视频。
+- **Vite**: 构建工具，提供快速开发体验。
+
+## 3. 实现步骤
+
+### 第一步：初始化项目
+
+1. **创建 React 项目**
+
+```bash
+npm create vite@latest gpx-to-video --template react
+cd gpx-to-video
+npm install
+```
+
+2. **安装依赖**
+
+- 安装 Mapbox.js
+
+```bash
+npm install mapbox-gl
+```
+
+- 安装 FFmpeg
+
+```bash
+npm install @ffmpeg/ffmpeg @ffmpeg/util
+```
+
+### 第二步：加载 GPX 数据并渲染地图
+
+#### 1. 配置 Mapbox.js
+
+创建 `MapComponent.jsx`，初始化地图并加载 GPX 数据。
+
+```jsx
+import React, { useRef, useEffect, useState } from "react";
+import mapboxgl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { gpx } from "@tmcw/togeojson";
+
+mapboxgl.accessToken = "YOUR_MAPBOX_ACCESS_TOKEN";
+
+const MapComponent = ({ gpxFile }) => {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+
+  const [geojson, setGeojson] = useState(null);
+
+  useEffect(() => {
+    // 初始化地图
+    mapRef.current = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: "mapbox://styles/mapbox/streets-v11",
+      center: [0, 0], // 默认中心点
+      zoom: 12,
+    });
+
+    return () => {
+      mapRef.current?.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!gpxFile) return;
+
+    // 解析 GPX 文件
+    const reader = new FileReader();
+    reader.onload = e => {
+      const parser = new DOMParser();
+      const gpxDoc = parser.parseFromString(e.target.result, "application/xml");
+      const geojsonData = gpx(gpxDoc);
+
+      // 加载轨迹到地图
+      mapRef.current?.addSource("track", {
+        type: "geojson",
+        data: geojsonData,
+      });
+
+      mapRef.current?.addLayer({
+        id: "track-layer",
+        type: "line",
+        source: "track",
+        paint: {
+          "line-color": "#ff0000",
+          "line-width": 4,
+        },
+      });
+
+      setGeojson(geojsonData);
+    };
+
+    reader.readAsText(gpxFile);
+  }, [gpxFile]);
+
+  return (
+    <div ref={mapContainerRef} style={{ height: "500px", width: "100%" }} />
+  );
+};
+
+export default MapComponent;
+```
+
+---
+
+### 第三步：实现轨迹动态绘制
+
+添加动态轨迹动画。
+
+```jsx
+const animateTrack = geojson => {
+  let coordinates = geojson.features[0].geometry.coordinates;
+  let index = 0;
+
+  const animate = () => {
+    if (index < coordinates.length) {
+      const partialTrack = {
+        type: "Feature",
+        geometry: {
+          type: "LineString",
+          coordinates: coordinates.slice(0, index + 1),
+        },
+      };
+
+      mapRef.current.getSource("track").setData(partialTrack);
+      index++;
+
+      requestAnimationFrame(animate);
+    }
+  };
+
+  animate();
+};
+```
+
+---
+
+### 第四步：生成视频
+
+利用 FFmpeg 将动态绘制过程生成视频。
+
+```jsx
+import { FFmpeg } from "@ffmpeg/ffmpeg";
+
+const generateVideo = async frames => {
+  const ffmpeg = new FFmpeg();
+  await ffmpeg.load();
+
+  // 上传截图
+  frames.forEach((frame, index) => {
+    ffmpeg.FS("writeFile", `frame${index}.png`, frame);
+  });
+
+  // 合成视频
+  await ffmpeg.run(
+    "-framerate",
+    "30",
+    "-i",
+    "frame%d.png",
+    "-pix_fmt",
+    "yuv420p",
+    "output.mp4"
+  );
+
+  const data = ffmpeg.FS("readFile", "output.mp4");
+  const videoBlob = new Blob([data.buffer], { type: "video/mp4" });
+
+  // 下载视频
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(videoBlob);
+  link.download = "track.mp4";
+  link.click();
+};
+```
+
+---
+
+## 4. 遇到的问题与解决方案
+
+### 1. **FFmpeg 性能较低**
+
+- **问题**: 在 React 中使用 FFmpeg.wasm 生成视频时，性能瓶颈非常明显，尤其是处理较长轨迹时。
+- **解决方案**: 考虑将项目迁移到 Electron 环境，直接调用系统内置的 FFmpeg 命令行工具，从而提升性能。
+
+### 2. **轨迹动画与时间戳对齐问题**
+
+- **问题**: 在动态绘制轨迹时，由于时间戳处理不当，动画节奏可能与实际时间不符。
+- **解决方案**: 通过 GPX 文件中的时间戳计算每帧的持续时间，并在视频合成时使用 `-vsync vfr` 参数支持变帧率。
+
+### 3. **FFmpeg 进度监听**
+
+- **问题**: 在 FFmpeg 运行过程中，需要获取视频生成的实时进度。
+- **解决方案**: 使用 FFmpeg 的 `on("progress")` 监听器，根据处理的帧数动态更新进度条。
+
+---
+
+## 5. 最终效果
+
+用户上传 GPX 文件后：
+
+1. 地图上动态展示轨迹。
+2. 导出轨迹视频，精确对齐时间戳。
+
+---
+
+## 6. 源代码与示例
+
+完整项目源码：[GitHub Repository](#)
+
+运行项目：
+
+```bash
+npm install
+npm run dev
+```
+
+---
+
+通过这篇文章，你学会了如何结合 React、Mapbox.js 和 FFmpeg 生成 GPX 轨迹视频，同时也分享了解决开发中常见问题的方法。希望这个项目能为你的下一个创意提供灵感！🎉
