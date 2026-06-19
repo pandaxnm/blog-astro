@@ -102,6 +102,7 @@
     }
 
     function unlockScroll() {
+      const y = scrollY;
       document.documentElement.style.overflow = "";
       document.body.style.overflow = "";
       document.body.style.position = "";
@@ -109,7 +110,13 @@
       document.body.style.left = "";
       document.body.style.right = "";
       document.body.style.width = "";
-      window.scrollTo(0, scrollY);
+
+      // Override scroll-smooth on html to avoid animating from top on close
+      const root = document.documentElement;
+      const previousScrollBehavior = root.style.scrollBehavior;
+      root.style.scrollBehavior = "auto";
+      window.scrollTo(0, y);
+      root.style.scrollBehavior = previousScrollBehavior;
     }
 
     function getElements() {
@@ -149,6 +156,8 @@
       if (!lightbox) return;
 
       if (isOpen) {
+        event.preventDefault();
+        event.stopPropagation();
         closeLightbox();
         return;
       }
@@ -160,6 +169,7 @@
       if (!(img instanceof HTMLImageElement)) return;
 
       event.preventDefault();
+      event.stopPropagation();
       openLightbox(img);
     }
 
