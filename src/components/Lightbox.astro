@@ -1,6 +1,6 @@
 <div
   id="lightbox"
-  class="fixed inset-0 z-[100] hidden cursor-zoom-out items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+  class="fixed inset-0 z-[100] hidden cursor-zoom-out touch-none items-center justify-center overscroll-none bg-black/90 p-4 backdrop-blur-sm"
   role="dialog"
   aria-modal="true"
   aria-label="图片预览"
@@ -87,6 +87,30 @@
 
     /** @type {boolean} */
     let isOpen = false;
+    /** @type {number} */
+    let scrollY = 0;
+
+    function lockScroll() {
+      scrollY = window.scrollY;
+      document.documentElement.style.overflow = "hidden";
+      document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+    }
+
+    function unlockScroll() {
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      window.scrollTo(0, scrollY);
+    }
 
     function getElements() {
       return {
@@ -104,7 +128,7 @@
       lightbox.removeAttribute("hidden");
       lightbox.classList.remove("hidden");
       lightbox.classList.add("flex");
-      document.body.style.overflow = "hidden";
+      lockScroll();
       isOpen = true;
     }
 
@@ -116,7 +140,7 @@
       lightbox.classList.add("hidden");
       lightbox.classList.remove("flex");
       lightboxImage.removeAttribute("src");
-      document.body.style.overflow = "";
+      unlockScroll();
       isOpen = false;
     }
 
@@ -143,12 +167,18 @@
       if (event.key === "Escape") closeLightbox();
     }
 
+    function onTouchMove(/** @type {TouchEvent} */ event) {
+      if (!isOpen) return;
+      event.preventDefault();
+    }
+
     function init() {
       if (window.__lightboxInitialized) return;
       window.__lightboxInitialized = true;
 
       document.addEventListener("click", onDocumentClick);
       document.addEventListener("keydown", onKeydown);
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
       document.addEventListener("astro:before-swap", closeLightbox);
     }
 
