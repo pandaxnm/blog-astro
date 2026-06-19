@@ -1,0 +1,157 @@
+<div
+  id="lightbox"
+  class="fixed inset-0 z-[100] hidden cursor-zoom-out items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+  role="dialog"
+  aria-modal="true"
+  aria-label="图片预览"
+  hidden
+>
+  <img
+    id="lightbox-image"
+    class="max-h-[92vh] max-w-[min(100%,96vw)] object-contain shadow-2xl"
+    alt=""
+  />
+</div>
+
+<script is:inline>
+  (function () {
+    const LIGHTBOX_SELECTOR = "#main-content .app-prose img";
+
+    /** @param {string} srcset @param {string} fallback */
+    function getLargestSrcFromSrcset(srcset, fallback) {
+      let bestSrc = fallback;
+      let bestScore = -1;
+
+      for (const part of srcset.split(",")) {
+        const [url, descriptor] = part.trim().split(/\s+/);
+        if (!url) continue;
+
+        let score = 1;
+        if (descriptor?.endsWith("w")) {
+          score = parseInt(descriptor, 10) || 0;
+        } else if (descriptor?.endsWith("x")) {
+          score = (parseFloat(descriptor) || 1) * 10000;
+        }
+
+        if (score >= bestScore) {
+          bestScore = score;
+          bestSrc = url;
+        }
+      }
+
+      return bestSrc;
+    }
+
+    /** @param {HTMLImageElement} img */
+    function getFullImageSrc(img) {
+      const picture = img.closest("picture");
+      const srcsets = [];
+
+      if (picture) {
+        picture.querySelectorAll("source[srcset]").forEach(source => {
+          const srcset = source.getAttribute("srcset");
+          if (srcset) srcsets.push(srcset);
+        });
+      }
+
+      if (img.srcset) srcsets.push(img.srcset);
+
+      if (srcsets.length > 0) {
+        let bestSrc = img.currentSrc || img.src;
+        let bestScore = -1;
+
+        for (const srcset of srcsets) {
+          for (const part of srcset.split(",")) {
+            const [url, descriptor] = part.trim().split(/\s+/);
+            if (!url) continue;
+
+            let score = 1;
+            if (descriptor?.endsWith("w")) {
+              score = parseInt(descriptor, 10) || 0;
+            } else if (descriptor?.endsWith("x")) {
+              score = (parseFloat(descriptor) || 1) * 10000;
+            }
+
+            if (score >= bestScore) {
+              bestScore = score;
+              bestSrc = url;
+            }
+          }
+        }
+
+        return bestSrc;
+      }
+
+      return img.currentSrc || img.src;
+    }
+
+    /** @type {boolean} */
+    let isOpen = false;
+
+    function getElements() {
+      return {
+        lightbox: document.getElementById("lightbox"),
+        lightboxImage: document.getElementById("lightbox-image"),
+      };
+    }
+
+    function openLightbox(/** @type {HTMLImageElement} */ img) {
+      const { lightbox, lightboxImage } = getElements();
+      if (!lightbox || !lightboxImage) return;
+
+      lightboxImage.src = getFullImageSrc(img);
+      lightboxImage.alt = img.alt || "放大图片";
+      lightbox.removeAttribute("hidden");
+      lightbox.classList.remove("hidden");
+      lightbox.classList.add("flex");
+      document.body.style.overflow = "hidden";
+      isOpen = true;
+    }
+
+    function closeLightbox() {
+      const { lightbox, lightboxImage } = getElements();
+      if (!lightbox || !lightboxImage || !isOpen) return;
+
+      lightbox.setAttribute("hidden", "");
+      lightbox.classList.add("hidden");
+      lightbox.classList.remove("flex");
+      lightboxImage.removeAttribute("src");
+      document.body.style.overflow = "";
+      isOpen = false;
+    }
+
+    function onDocumentClick(/** @type {MouseEvent} */ event) {
+      const { lightbox } = getElements();
+      if (!lightbox) return;
+
+      if (isOpen) {
+        closeLightbox();
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const img = target.closest(LIGHTBOX_SELECTOR);
+      if (!(img instanceof HTMLImageElement)) return;
+
+      event.preventDefault();
+      openLightbox(img);
+    }
+
+    function onKeydown(/** @type {KeyboardEvent} */ event) {
+      if (event.key === "Escape") closeLightbox();
+    }
+
+    function init() {
+      if (window.__lightboxInitialized) return;
+      window.__lightboxInitialized = true;
+
+      document.addEventListener("click", onDocumentClick);
+      document.addEventListener("keydown", onKeydown);
+      document.addEventListener("astro:before-swap", closeLightbox);
+    }
+
+    init();
+  })();
+</script>
