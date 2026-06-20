@@ -74,7 +74,7 @@ function mountAll() {
         showMuteButton: true,
         borderRadius: 0,
         theme: "auto",
-        enableVibration: true,
+        enableVibration: false,
         imageCustomization: fitMedia,
         videoCustomization: fitMedia,
         onClick: () => {
