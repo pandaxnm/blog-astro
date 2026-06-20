@@ -38,6 +38,9 @@ importers:
       dayjs:
         specifier: ^1.11.13
         version: 1.11.13
+      live-photo:
+        specifier: ^0.2.0
+        version: 0.2.0
       lodash.kebabcase:
         specifier: ^4.1.1
         version: 4.1.1
@@ -2149,6 +2152,10 @@ packages:
 
   lite-youtube-embed@0.3.3:
     resolution: {integrity: sha512-gFfVVnj6NRjxVfJKo3qoLtpi0v5mn3AcR4eKD45wrxQuxzveFJUb+7Cr6uV6n+DjO8X3p0UzPPquhGt0H/y+NA==}
+
+  live-photo@0.2.0:
+    resolution: {integrity: sha512-78vVTLJ3mtSNgnvadmxSFHNU4vqa/UwL2+z0lFOzwP5GV6RbjINzbVS9kZk+wYLlhFmKEJe1fm0Py3btORK6vg==}
+    engines: {node: '>=22.13.0', pnpm: '>=10.0.0'}
 
   locate-path@6.0.0:
     resolution: {integrity: sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw==}
@@ -5544,6 +5551,8 @@ snapshots:
       unicode-trie: 2.0.0
 
   lite-youtube-embed@0.3.3: {}
+
+  live-photo@0.2.0: {}
 
   locate-path@6.0.0:
     dependencies:

@@ -23,6 +23,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "astro": "^5.11.0",
     "dayjs": "^1.11.13",
+    "live-photo": "^0.2.0",
     "lodash.kebabcase": "^4.1.1",
     "remark-collapse": "^0.1.2",
     "remark-toc": "^9.0.0",

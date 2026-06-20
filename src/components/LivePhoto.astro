@@ -1,0 +1,61 @@
+---
+import { resolveLivePhotoPaths } from "@/utils/resolveLivePhotoPaths";
+
+interface Props {
+  folder?: string;
+  photoSrc?: string;
+  videoSrc?: string;
+  caption?: string;
+}
+
+const { folder, caption, ...rest } = Astro.props;
+
+let photoSrc = rest.photoSrc;
+let videoSrc = rest.videoSrc;
+
+if (folder) {
+  ({ photoSrc, videoSrc } = resolveLivePhotoPaths(folder));
+}
+
+if (!photoSrc || !videoSrc) {
+  throw new Error(
+    "LivePhoto: provide `folder`, or both `photoSrc` and `videoSrc`.",
+  );
+}
+---
+
+<div class="not-prose my-6">
+  {
+    caption && (
+      <p class="mb-2 text-sm text-foreground/75">{caption}</p>
+    )
+  }
+  <div
+    class="live-photo-mount mx-auto w-full max-w-app overflow-hidden rounded border border-border"
+    data-photo-src={photoSrc}
+    data-video-src={videoSrc}
+  ></div>
+</div>
+
+<style is:global>
+  .live-photo-mount .live-photo-overlay {
+    cursor: pointer;
+  }
+
+  .live-photo-mount .live-photo-image,
+  .live-photo-mount .live-photo-video {
+    object-fit: contain;
+  }
+
+  .live-photo-mount .live-photo-container.playing .live-photo-video {
+    transform: scale(1);
+  }
+
+  .live-photo-mount .live-photo-container.playing .live-photo-image {
+    transform: scale(1);
+  }
+</style>
+
+<script>
+  import "@/utils/live-photo-init.ts";
+</script>
